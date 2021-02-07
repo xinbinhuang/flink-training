@@ -19,17 +19,22 @@
 package org.apache.flink.training.exercises.hourlytips.scala
 
 import org.apache.flink.streaming.api.scala._
+import org.apache.flink.streaming.api.scala.function.ProcessWindowFunction
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows
+import org.apache.flink.streaming.api.windowing.time.Time
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow
 import org.apache.flink.training.exercises.common.sources.TaxiFareGenerator
+import org.apache.flink.training.exercises.common.utils.ExerciseBase
 import org.apache.flink.training.exercises.common.utils.ExerciseBase._
-import org.apache.flink.training.exercises.common.utils.{ExerciseBase, MissingSolutionException}
+import org.apache.flink.util.Collector
 
 /**
-  * The "Hourly Tips" exercise of the Flink training in the docs.
-  *
-  * The task of the exercise is to first calculate the total tips collected by each driver, hour by hour, and
-  * then from that stream, find the highest tip total in each hour.
-  *
-  */
+ * The "Hourly Tips" exercise of the Flink training in the docs.
+ *
+ * The task of the exercise is to first calculate the total tips collected by each driver, hour by hour, and
+ * then from that stream, find the highest tip total in each hour.
+ *
+ */
 object HourlyTipsExercise {
 
   def main(args: Array[String]) {
@@ -41,13 +46,29 @@ object HourlyTipsExercise {
     // start the data generator
     val fares = env.addSource(fareSourceOrTest(new TaxiFareGenerator()))
 
-    throw new MissingSolutionException()
+    val hourlyTips = fares
+      .map(fare => (fare.driverId, fare.tip))
+      .keyBy(_._1)
+      .window(TumblingEventTimeWindows.of(Time.hours(1)))
+      .reduce((f1, f2) => (f1._1, f1._2 + f2._2), new WrapWindowInfo)
 
-   // print result on stdout
-//    printOrTest(hourlyMax)
+    val hourlyMax = hourlyTips
+      //      .windowAll(TumblingEventTimeWindows.of(Time.hours(1)))
+      .keyBy(_._1)
+      .maxBy(2)
+
+    // print result on stdout
+    printOrTest(hourlyMax)
 
     // execute the transformation pipeline
     env.execute("Hourly Tips (scala)")
+  }
+
+  class WrapWindowInfo extends ProcessWindowFunction[(Long, Float), (Long, Long, Float), Long, TimeWindow] {
+    override def process(key: Long, context: Context, elements: Iterable[(Long, Float)], out: Collector[(Long, Long, Float)]): Unit = {
+      val sumOfTips = elements.iterator.next._2
+      out.collect(context.window.getEnd, key, sumOfTips)
+    }
   }
 
 }

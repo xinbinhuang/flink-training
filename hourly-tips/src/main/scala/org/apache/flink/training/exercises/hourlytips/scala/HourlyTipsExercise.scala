@@ -53,8 +53,8 @@ object HourlyTipsExercise {
       .reduce((f1, f2) => (f1._1, f1._2 + f2._2), new WrapWindowInfo)
 
     val hourlyMax = hourlyTips
-      //      .windowAll(TumblingEventTimeWindows.of(Time.hours(1)))
-      .keyBy(_._1)
+      .windowAll(TumblingEventTimeWindows.of(Time.hours(1)))
+      //      .keyBy(_._1)
       .maxBy(2)
 
     // print result on stdout

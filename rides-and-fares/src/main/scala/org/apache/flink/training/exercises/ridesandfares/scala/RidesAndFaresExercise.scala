@@ -18,20 +18,21 @@
 
 package org.apache.flink.training.exercises.ridesandfares.scala
 
+import org.apache.flink.api.common.state.{ValueState, ValueStateDescriptor}
 import org.apache.flink.streaming.api.functions.co.RichCoFlatMapFunction
 import org.apache.flink.streaming.api.scala.{StreamExecutionEnvironment, _}
 import org.apache.flink.training.exercises.common.datatypes.{TaxiFare, TaxiRide}
 import org.apache.flink.training.exercises.common.sources.{TaxiFareGenerator, TaxiRideGenerator}
+import org.apache.flink.training.exercises.common.utils.ExerciseBase
 import org.apache.flink.training.exercises.common.utils.ExerciseBase._
-import org.apache.flink.training.exercises.common.utils.{ExerciseBase, MissingSolutionException}
 import org.apache.flink.util.Collector
 
 /**
-  * The "Stateful Enrichment" exercise of the Flink training in the docs.
-  *
-  * The goal for this exercise is to enrich TaxiRides with fare information.
-  *
-  */
+ * The "Stateful Enrichment" exercise of the Flink training in the docs.
+ *
+ * The goal for this exercise is to enrich TaxiRides with fare information.
+ *
+ */
 object RidesAndFaresExercise {
 
   def main(args: Array[String]) {
@@ -59,14 +60,32 @@ object RidesAndFaresExercise {
   }
 
   class EnrichmentFunction extends RichCoFlatMapFunction[TaxiRide, TaxiFare, (TaxiRide, TaxiFare)] {
+    lazy val fareState: ValueState[TaxiFare] = getRuntimeContext.getState(
+      new ValueStateDescriptor[TaxiFare]("save fare state", classOf[TaxiFare]))
+    lazy val rideState: ValueState[TaxiRide] = getRuntimeContext.getState(
+      new ValueStateDescriptor[TaxiRide]("save ride state", classOf[TaxiRide]))
 
     override def flatMap1(ride: TaxiRide, out: Collector[(TaxiRide, TaxiFare)]): Unit = {
-      throw new MissingSolutionException()
+      val fare = fareState.value
+      if (fare != null) {
+        out.collect((ride, fare))
+        fareState.clear()
+      } else {
+        rideState.update(ride)
+      }
     }
 
     override def flatMap2(fare: TaxiFare, out: Collector[(TaxiRide, TaxiFare)]): Unit = {
+      val ride = rideState.value
+      if (ride != null) {
+        out.collect((ride, fare))
+        rideState.clear()
+      } else {
+        fareState.update(fare)
+      }
     }
 
   }
 
 }
+
